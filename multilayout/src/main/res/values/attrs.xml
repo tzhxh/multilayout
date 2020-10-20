@@ -10,5 +10,7 @@
         <attr name="tab_indicator_width" format="dimension" />
         <attr name="tab_indicator_height" format="dimension" />
         <attr name="tab_indicator_radius" format="dimension" />
+        <attr name="tab_background_unselect" format="reference"/>
+        <attr name="tab_background_select" format="reference"/>
     </declare-styleable>
 </resources>

@@ -1,13 +1,21 @@
 package com.ixiaow.multilayout;
 
+import android.annotation.SuppressLint;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.content.res.TypedArray;
 import android.database.DataSetObserver;
+import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Color;
+import android.graphics.Matrix;
 import android.graphics.Paint;
+import android.graphics.PorterDuff;
+import android.graphics.PorterDuffXfermode;
+import android.graphics.Rect;
 import android.graphics.RectF;
+import android.graphics.drawable.BitmapDrawable;
+import android.graphics.drawable.Drawable;
 import android.os.Build;
 import android.support.annotation.NonNull;
 import android.support.annotation.Nullable;
@@ -77,6 +85,23 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
     //tabText的文字大小
     private float mTabTextSize;
 
+    private Bitmap mBitmap;
+    // 角标画笔
+    private Paint mBadgePaint;
+    // 右下角角标的 x轴位置
+    private int mBadgeTranslateX;
+    // 右下角角标的 y轴位置
+    private int mBadgeTranslateY;
+    // 角标的绘制bitmap的区域
+    private Rect mBadgeSRCRect;
+    // 角标的绘制在屏幕的区域
+    private Rect mBadgeDestRect;
+
+    @Nullable
+    private Drawable baseBackgroundDrawable;
+    @Nullable
+    private Drawable baseBackgroundDrawableUnSelect;
+
     //Tab选择监听事件
     private OnTabSelectListener mOnTabSelectListener;
 
@@ -84,6 +109,8 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
     private MultiLayoutDataSetObserver mDataSetObserver;
     private ColorStateList mTabTextColor;
 
+    private List<Bitmap> bitmapList;
+    private List<Rect[]> rectList;
 
     /**
      * 设置Tab选择监听事件
@@ -139,6 +166,8 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
         mIndicatorRadius = typedArray.getDimension(R.styleable.MultiLayout_tab_indicator_radius,
                 mContext.getResources().getDimensionPixelSize(R.dimen.tab_indicator_radius));
 
+        baseBackgroundDrawable = typedArray.getDrawable(R.styleable.MultiLayout_tab_background_select);
+        baseBackgroundDrawableUnSelect = typedArray.getDrawable(R.styleable.MultiLayout_tab_background_unselect);
 
         typedArray.recycle();
         initIndicator(indicatorColor, indicatorWidth, indicatorHeight);
@@ -185,12 +214,18 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
     /*
      * 初始化
      */
+    @SuppressLint("ResourceType")
     private void init(Context context) {
         this.mContext = context;
         //设置当前控件的orientation为垂直
+
         setOrientation(VERTICAL);
+
+        bitmapList = new ArrayList<>();
+        rectList = new ArrayList<>();
         //在ViewGroup中如果用到了onDraw(),则必须调用此方法
         setWillNotDraw(false);
+
     }
 
     @Override
@@ -220,6 +255,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
         });
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     @Override
     protected void onLayout(boolean changed, int l, int t, int r, int b) {
         Log.d(TAG, "onLayout...");
@@ -301,6 +337,25 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
                 mIndicatorRadius, mIndicatorPaint);
         //恢复保存的画布
         canvas.restore();
+
+    }
+
+    /**
+     * 使用dispatchDraw 可以使画出的角标位于textView的上层，
+     * 使用onDraw 无法显示在textView上层
+     *
+     */
+    @Override
+    protected void dispatchDraw(Canvas canvas) {
+        super.dispatchDraw(canvas);
+        // 绘制角标
+        if (bitmapList != null) {
+            canvas.save();
+            for (int i = 0; i < bitmapList.size(); i++) {
+                canvas.drawBitmap(bitmapList.get(i), rectList.get(i)[0], rectList.get(i)[1], mBadgePaint);
+            }
+            canvas.restore();
+        }
     }
 
     /**
@@ -308,6 +363,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
      *
      * @param tabNames tab名称集合
      */
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     public void initTabNames(List<String> tabNames) {
         updateTabNames(tabNames, false);
     }
@@ -317,6 +373,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
      *
      * @param viewPager ViewPager，调用此方法前最好先给viewPager设置adapter
      */
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     public void setupWithViewPager(@NonNull ViewPager viewPager) {
         this.mViewPager = viewPager;
         PagerAdapter adapter = viewPager.getAdapter();
@@ -333,10 +390,98 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
     }
 
     /**
+     * 为当前textView 添加角标
+     *
+     * @param drawable 传入角标图案
+     */
+    public void addBadge(Drawable drawable) {
+        int drawableWidth = (int) mTabWidth / 2;
+        int drawableHeight = (int) mTabHeight / 2;
+        initBadge(drawable, drawableWidth, drawableHeight);
+    }
+
+    /**
+     * 为当前textView 添加角标
+     *
+     * @param drawable       传入角标图案
+     * @param drawableWidth  设置图标宽度
+     * @param drawableHeight 设置图标高度
+     */
+    public void addBadge(Drawable drawable, int drawableWidth, int drawableHeight) {
+        initBadge(drawable, drawableWidth, drawableHeight);
+    }
+
+    private void initBadge(Drawable drawable, int drawableWidth, int drawableHeight) {
+        Boolean isSuccess = initBadgePosition(drawableWidth, drawableHeight);
+        if (!isSuccess) {
+            return;
+        }
+        initBadgePaint();
+        Bitmap tempBitmap = initBitmap(drawable);
+        mBitmap = scaleBitmap(tempBitmap, drawableWidth, drawableHeight);
+        Rect[] rects = initRect(drawableWidth, drawableHeight);
+        bitmapList.add(mBitmap);
+        rectList.add(rects);
+        invalidate();
+    }
+
+    private Rect[] initRect(int drawableWidth, int drawableHeight) {
+        Rect[] rects = new Rect[2];
+        mBadgeSRCRect = new Rect(0, 0, drawableWidth, drawableHeight);
+        mBadgeDestRect = new Rect(mBadgeTranslateX, mBadgeTranslateY, mBadgeTranslateX + drawableWidth, mBadgeTranslateY + drawableHeight);
+        rects[0] = mBadgeSRCRect;
+        rects[1] = mBadgeDestRect;
+        return rects;
+    }
+
+    private Bitmap initBitmap(Drawable drawable) {
+        BitmapDrawable bitmapDrawable = (BitmapDrawable) drawable;
+        return bitmapDrawable.getBitmap();
+    }
+
+    private void initBadgePaint() {
+        mBadgePaint = new Paint();
+        mBadgePaint.setDither(true);
+        mBadgePaint.setFilterBitmap(true);
+    }
+
+    private Boolean initBadgePosition(int drawableWidth, int drawableHeight) {
+
+        int position;
+        int translateX;
+        int translateY;
+        if (mCurrentTabText == null || mTabTextList == null) {
+            return false;
+        } else {
+            position = mTabTextList.indexOf(mCurrentTabText);
+            translateY = (int) ((indexOfChild((View) mCurrentTabText.getParent()) + 1) * mTabHeight * 17 / 20 - drawableHeight / 2);
+        }
+        if (position == 0) {
+            translateX = (int) mTabWidth * 17 / 20 - drawableWidth / 2;
+        } else {
+            translateX = (int) ((mTabWidth + mTabMinMargin) * position + mTabWidth * 17 / 20 - drawableWidth / 2);
+        }
+        mBadgeTranslateX = translateX;
+        mBadgeTranslateY = translateY;
+        return true;
+    }
+
+    private Bitmap scaleBitmap(Bitmap bitmap, int width, int height) {
+        int defaultWidth = bitmap.getWidth();
+        int defaultHeight = bitmap.getHeight();
+        float scaleWidth = (float) width / defaultWidth;
+        float scaleHeight = (float) height / defaultHeight;
+        Matrix matrix = new Matrix();
+        matrix.postScale(scaleWidth, scaleHeight);
+        return Bitmap.createBitmap(bitmap, 0, 0, defaultWidth, defaultHeight, matrix, true);
+    }
+
+    /**
      * 设置tabNames通过viewPager的adapter
      *
      * @param adapter {@link ViewPager#getAdapter()}
      */
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     private void setTabNamesByAdapter(@NonNull PagerAdapter adapter) {
         Log.d(TAG, "setTabNames");
         /*
@@ -357,6 +502,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
      *
      * @param tabNames tab名称集合
      */
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     public void updateTabNames(List<String> tabNames) {
         updateTabNames(tabNames, true);
     }
@@ -367,6 +513,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
      * @param tabNames tab名称集合
      * @param isUpdate true 更新tabText， false不更新
      */
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     private void updateTabNames(List<String> tabNames, boolean isUpdate) {
         if (!isEmpty(mTabNames)) {
             mTabNames.clear();//如果以前集合有数据则清空
@@ -391,6 +538,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
     /**
      * 根据tabNames中的数据去更新view
      */
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     private void updateTabs() {
         Log.d(TAG, "update Tabs...");
         if (mMultiLayoutWidth == 0) {
@@ -412,7 +560,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
         mTabTextList = new ArrayList<>(mTabNames.size());
         //创建一行水平线性布局
         LinearLayout linearLayout = newLinearLayout();
-        this.addView(linearLayout);
+        this.addView(linearLayout, -1);
         int mViewWidth = 0;//tabTextView的宽度
         //临时宽度，主要是用于当前tabText的宽度+mViewWidth的宽度之后的临时值和控件宽度mTopicLayoutWidth作比较
         int tmpViewWidth;
@@ -434,7 +582,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
              */
             if (tmpViewWidth <= mMultiLayoutWidth) {
                 mViewWidth += width;
-                linearLayout.addView(tabText);
+                linearLayout.addView(tabText, -1);
                 continue;
             }
 
@@ -443,8 +591,8 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
              */
             mViewWidth = width;
             linearLayout = newLinearLayout();
-            this.addView(linearLayout);
-            linearLayout.addView(tabText);
+            this.addView(linearLayout, -1);
+            linearLayout.addView(tabText, -1);
         }
         Log.d(TAG, "childCount: " + getChildCount());
     }
@@ -470,10 +618,14 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
      * @param tabName tabText名称
      * @return tabText
      */
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     @NonNull
     private TextView newTabText(String tabName) {
         TextView tabText = new TextView(mContext);
         tabText.setTextSize(mTabTextSize);
+
+        // xxx 设置tabtext样式
+        tabText.setBackground(baseBackgroundDrawableUnSelect);
         tabText.setTextColor(mTabTextColor);
         tabText.setGravity(Gravity.CENTER);
         tabText.setMaxLines(1);
@@ -515,6 +667,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
         view.measure(w, h);
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     @Override
     public void onClick(View v) {
         if (mCurrentTabText == v) {
@@ -541,14 +694,18 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
      * @param textView tabText
      * @param index    当前textView在集合中的下标
      */
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     private void selectTabText(@NonNull TextView textView, int index) {
         //将其置为选择状态
         textView.setSelected(true);
         if (mCurrentTabText != null) {
             mCurrentTabText.setSelected(false);//取消前一个的选择状态
+            // xxx 取消选中状态
+            mCurrentTabText.setBackground(baseBackgroundDrawableUnSelect);
         }
         mCurrentTabText = textView;
-
+        // xxx 设置选中状态
+        mCurrentTabText.setBackground(baseBackgroundDrawable);
         LinearLayout parent = (LinearLayout) textView.getParent();
         //找出tabText的位置
         int position = parent.indexOfChild(textView);
@@ -565,6 +722,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
         Log.d(TAG, "onPageScrolled");
     }
 
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     @Override
     public void onPageSelected(int position) {
         Log.d(TAG, "onPageSelected postion: " + position);
@@ -586,6 +744,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
     }
 
 
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     @Override
     public void onAdapterChanged(@NonNull ViewPager viewPager,
                                  @Nullable PagerAdapter oldAdapter,
@@ -606,6 +765,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
      * 数据监听
      */
     private class MultiLayoutDataSetObserver extends DataSetObserver {
+        @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
         @Override
         public void onChanged() {//adapter数据更新后会调用此方法
             super.onChanged();
@@ -617,6 +777,7 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
     /**
      * 通知viewPager中的数据已更新
      */
+    @RequiresApi(api = Build.VERSION_CODES.JELLY_BEAN)
     private void notifyDataSetChange() {
         PagerAdapter adapter = mViewPager.getAdapter();
         if (adapter != null) {
