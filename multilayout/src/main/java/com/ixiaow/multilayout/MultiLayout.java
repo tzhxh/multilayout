@@ -142,32 +142,32 @@ public class MultiLayout extends LinearLayout implements View.OnClickListener,
      */
     private void initAttr(AttributeSet attrs) {
         TypedArray typedArray = mContext.obtainStyledAttributes(attrs, R.styleable.MultiLayout);
-        mTabTextSize = typedArray.getDimensionPixelSize(R.styleable.MultiLayout_tab_text_size,
-                getResources().getDimensionPixelSize(R.dimen.tab_text_size));
+        mTabTextSize = typedArray.getDimensionPixelSize(R.styleable.MultiLayout_my_tab_text_size,
+                getResources().getDimensionPixelSize(R.dimen.default_tab_text_size));
         mTabTextSize = mTabTextSize / mContext.getResources().getDisplayMetrics().density;
-        mTabWidth = typedArray.getDimensionPixelSize(R.styleable.MultiLayout_tab_text_width,
-                getResources().getDimensionPixelSize(R.dimen.tab_text_width));
-        mTabHeight = typedArray.getDimensionPixelSize(R.styleable.MultiLayout_tab_text_height,
-                getResources().getDimensionPixelSize(R.dimen.tab_text_height));
+        mTabWidth = typedArray.getDimensionPixelSize(R.styleable.MultiLayout_my_tab_text_width,
+                getResources().getDimensionPixelSize(R.dimen.default_tab_text_width));
+        mTabHeight = typedArray.getDimensionPixelSize(R.styleable.MultiLayout_my_tab_text_height,
+                getResources().getDimensionPixelSize(R.dimen.default_tab_text_height));
 
-        int tabTextSelectColor = mContext.getResources().getColor(R.color.tab_text_select_color);
-        tabTextSelectColor = typedArray.getColor(R.styleable.MultiLayout_tab_text_select_color, tabTextSelectColor);
+        int tabTextSelectColor = mContext.getResources().getColor(R.color.default_tab_text_select_color);
+        tabTextSelectColor = typedArray.getColor(R.styleable.MultiLayout_my_tab_text_select_color, tabTextSelectColor);
 
-        int tabTextUnSelectColor = mContext.getResources().getColor(R.color.tab_text_color);
-        tabTextUnSelectColor = typedArray.getColor(R.styleable.MultiLayout_tab_text_unselect_color, tabTextUnSelectColor);
+        int tabTextUnSelectColor = mContext.getResources().getColor(R.color.default_tab_text_color);
+        tabTextUnSelectColor = typedArray.getColor(R.styleable.MultiLayout_my_tab_text_no_select_color, tabTextUnSelectColor);
 
         mTabTextColor = createTabTextColorStateList(tabTextSelectColor, tabTextUnSelectColor);
 
-        int indicatorColor = typedArray.getColor(R.styleable.MultiLayout_tab_indicator_color, Color.RED);
-        float indicatorWidth = typedArray.getDimension(R.styleable.MultiLayout_tab_indicator_width,
-                mContext.getResources().getDimensionPixelSize(R.dimen.tab_indicator_width));
-        float indicatorHeight = typedArray.getDimension(R.styleable.MultiLayout_tab_indicator_height,
-                mContext.getResources().getDimensionPixelSize(R.dimen.tab_indicator_height));
-        mIndicatorRadius = typedArray.getDimension(R.styleable.MultiLayout_tab_indicator_radius,
-                mContext.getResources().getDimensionPixelSize(R.dimen.tab_indicator_radius));
+        int indicatorColor = typedArray.getColor(R.styleable.MultiLayout_my_tab_indicator_color, Color.RED);
+        float indicatorWidth = typedArray.getDimension(R.styleable.MultiLayout_my_tab_indicator_width,
+                mContext.getResources().getDimensionPixelSize(R.dimen.default_tab_indicator_width));
+        float indicatorHeight = typedArray.getDimension(R.styleable.MultiLayout_my_tab_indicator_height,
+                mContext.getResources().getDimensionPixelSize(R.dimen.default_tab_indicator_height));
+        mIndicatorRadius = typedArray.getDimension(R.styleable.MultiLayout_my_tab_indicator_radius,
+                mContext.getResources().getDimensionPixelSize(R.dimen.default_tab_indicator_radius));
 
-        baseBackgroundDrawable = typedArray.getDrawable(R.styleable.MultiLayout_tab_background_select);
-        baseBackgroundDrawableUnSelect = typedArray.getDrawable(R.styleable.MultiLayout_tab_background_unselect);
+        baseBackgroundDrawable = typedArray.getDrawable(R.styleable.MultiLayout_my_tab_background_select);
+        baseBackgroundDrawableUnSelect = typedArray.getDrawable(R.styleable.MultiLayout_my_tab_background_no_select);
 
         typedArray.recycle();
         initIndicator(indicatorColor, indicatorWidth, indicatorHeight);
