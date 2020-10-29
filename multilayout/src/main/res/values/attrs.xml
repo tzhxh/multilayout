@@ -12,5 +12,7 @@
         <attr name="my_tab_indicator_radius" format="dimension" />
         <attr name="my_tab_background_no_select" format="reference" />
         <attr name="my_tab_background_select" format="reference" />
+        <attr name="my_tab_selected_text_width" format="dimension" />
+        <attr name="my_tab_margin_vertical" format="dimension" />
     </declare-styleable>
 </resources>
